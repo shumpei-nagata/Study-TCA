@@ -20,6 +20,7 @@ struct CounterFeature {
     enum Action {
         case decrementButtonTapped
         case factButtonTapped
+        case factResponse(String)
         case incrementButtonTapped
     }
     
@@ -34,13 +35,15 @@ struct CounterFeature {
             case .factButtonTapped:
                 state.fact = nil
                 state.isLoading = true
+                return .run { [count = state.count] send in
+                    let (data, _) = try await URLSession.shared
+                              .data(from: URL(string: "http://numbersapi.com/\(count)")!)
+                    let fact = String(decoding: data, as: UTF8.self)
+                    await send(.factResponse(fact))
+                }
                 
-                let (data, _) = try await URLSession.shared
-                          .data(from: URL(string: "http://numbersapi.com/\(state.count)")!)
-                // 🛑 'async' call in a function that does not support concurrency
-                // 🛑 Errors thrown from here are not handled
-                
-                state.fact = String(decoding: data, as: UTF8.self)
+            case let .factResponse(fact):
+                state.fact = fact
                 state.isLoading = false
                 return .none
                 
@@ -96,6 +99,11 @@ struct CounterView: View {
                   .font(.largeTitle)
                   .multilineTextAlignment(.center)
                   .padding()
+              } else if let fact = store.fact {
+                  Text(fact)
+                      .font(.largeTitle)
+                      .multilineTextAlignment(.center)
+                      .padding()
               }
     }
   }
